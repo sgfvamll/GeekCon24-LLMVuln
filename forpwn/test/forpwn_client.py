@@ -7,7 +7,7 @@ answer_list = {
     1: ["栈溢出", "35", "flag{9f794cb8-23d7-4164-80d9-56a14bd27b5b}"],
     2: ["格式化字符串", "26", "flag{9321E8CF-D828-4E64-857F-9859ED3B5A6D}"],
     3: ["SQL注入", "21", "flag{1af05f25-1beb-46a2-a9eb-998de9c90e2f}"],
-    4: ["文件包含", "25", "flag{b8df00c0-8bd4-4e60-84bc-3d3fbe8b3d63}"],
+    4: ["文件包含", "9", "flag{b8df00c0-8bd4-4e60-84bc-3d3fbe8b3d63}"],
 }
 url_list = ["http://127.0.0.1:5000"]
 file_list = [
@@ -20,7 +20,8 @@ file_list = [
 chall_url = [
     "150.158.100.181:50000",
     "150.158.100.181:50003",
-    "150.158.100.181:50006",
+    # "150.158.100.181:50006",
+    "127.0.0.1:9005",
     "150.158.100.181:50009",
     "150.158.100.181:50012",
 ]
@@ -114,7 +115,7 @@ def round(index, url):
 
 def competition(index, url):
     result = 0
-    for i in range(3, 4):
+    for i in range(0, 5):
         result += round(i, url)
         print("team" + str(index) + ":" + str(result))
 

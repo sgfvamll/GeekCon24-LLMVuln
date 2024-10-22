@@ -7,6 +7,7 @@ import json
 import time
 
 from config import base_url, api_key
+from aiohttp import ClientSession, ClientTimeout
 
 ## Set the API key and model name
 MODEL="gpt-4o-2024-08-06"
@@ -26,7 +27,7 @@ ask_exp_template = {
     "栈溢出": '''
         The code above is a CTF question with stack overflow vulnerability, please help me generate a valid payload based on the vulnerability you found.
         You should return a python code with pwntools, exploit the vulnerability and cover the return address to the following address: 0xdead0000, the backdoor function address. The backdoor function will enter the shell, and your final goal is to cat /flag.
-        Your python code should just print the flag. Notice you may do not know the offset of the stack, so you should guess the offset, and enumerate in the near the offset, both bigger and smaller, until you get the flag. Notice the step should be 8 when you enumerate. The format of the flag is: flag{{...}}.
+        Your python code should just print the flag. Notice you may do not know the offset of the stack, so you should guess the offset (note that, the offset is the size of the input buffer and all local variables defined after it plus the size of canary (8 bytes for 64 bits arch) and the size of saved frame pointer (also 8 bytes for 64 bits arch) ), and enumerate in the near the offset, both bigger and smaller, until you get the flag. Notice the step should be 8 for normal cases and 4 for code compiled in x86 (32-bit arch) when you enumerate. The format of the flag is: flag{{...}}.
         Recommend you to use `flag = conn.recvuntil("}}", timeout=1)` when you to receive final answer to avoid the timeout, and if you use `recvline()`, you may miss the flag.
         And you should ==reconnect the remote server== when you try a new offset.
         And you should send `cat /flag` after you enter the backdoor function. And you should use `try catch` when you try offset.
@@ -65,7 +66,7 @@ ask_exp_template = {
             The challenge will print a stack address. Use this address to calculate the offset to the return address. You should deduce that the return address lies beyond the start of the payload.
 
             3. **Estimate return address offset**: 
-            Based on the leaked stack address and the buffer size, estimate the offset from the stack address to the return address. **Do not assume a fixed offset**; instead, attempt to discover it dynamically by enumerating or brute-forcing different offsets. And I will never change the offset in the script. You must ==try your best== to guess the correct offset from code analysis.
+            Based on the leaked stack address and the buffer size, estimate the offset from the stack address to the return address. Note that, the offset is the size of the leaked structure and all local variables defined after it plus the size of canary (8 bytes for 64 bits arch) and the size of saved frame pointer (also 8 bytes for 64 bits arch). **Do not assume a fixed offset**; instead, attempt to discover it dynamically by enumerating or brute-forcing different offsets. And I will never change the offset in the script. You must ==try your best== to guess the correct offset from code analysis.
 
             4. **Overwrite the return address**: 
             Use the format string vulnerability to overwrite the return address with `0xdead0000` (the backdoor function address). After overwriting the return address, trigger the backdoor, which should provide a shell. You can use `p.recvuntil(b"$ ", timeout=0.7)` to wait for the shell prompt.
@@ -98,16 +99,39 @@ class GPT4OSolver(LLMSolver):
         super().__init__(system_prompt)
         self.client = OpenAI(api_key=api_key, base_url=base_url)
 
-    def ask_gpt(self, prompt, timeout = 8.0, no_json = False):
+    @staticmethod
+    async def _ask_gpt(history, timeout):
+        url = base_url + "/chat/completions"
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {api_key}', 
+        }
+        data = {
+            "model": MODEL,
+            "messages": history,
+            "stream": False
+        }
+        timeout = ClientTimeout(total=timeout)
+        async with ClientSession(timeout=timeout) as session:
+            async with session.post(url, json=data, headers=headers) as response:
+                res = await response.json()
+                return res['choices'][0]["message"]["content"]
+
+    async def ask_gpt(self, prompt, timeout = 8.0, no_json = False):
         logger.info(f"{prompt = }\n{timeout = }")
         logger.info(f"{self.history = }")
         self.history.append({"role": "user", "content": prompt})
-        completion_vulnerability = self.client.chat.completions.create(
-            model=MODEL,
-            messages=self.history,
-            timeout=timeout
-        )
-        reply = completion_vulnerability.choices[0].message.content
+        # completion_vulnerability = self.client.chat.completions.create(
+        #     model=MODEL,
+        #     messages=self.history,
+        #     timeout=timeout
+        # )
+        # reply = completion_vulnerability.choices[0].message.content
+        try:
+            reply = await self._ask_gpt(self.history, timeout)
+        except Exception as e:
+            logger.error(e)
+            reply = ""
         logger.info(f"{reply = }")
         if no_json:
             return reply
@@ -136,14 +160,14 @@ class GPT4OSolver(LLMSolver):
     async def ask_for_vuln_type_and_line(self, code: str, time_limit: float) -> tuple[str, str]:
         start = time.time()
         first_prompt = first_prompt_template + code
-        vulnerability = self.ask_gpt(first_prompt, timeout=time_limit)
+        vulnerability = await self.ask_gpt(first_prompt, timeout=time_limit)
         logger.info(f"{vulnerability = }")
         vul_type, vul_line = extract_from_json(vulnerability, "type", "line")
         line_num = GPT4OSolver.cal_line(code, vul_line)
         remaining = time_limit - (time.time() - start)
         while (vul_type is None or line_num is None) and (remaining > 2):
             self.revert()
-            vulnerability = self.ask_gpt(first_prompt, timeout=remaining)
+            vulnerability = await self.ask_gpt(first_prompt, timeout=remaining)
             vul_type, vul_line = extract_from_json(vulnerability, "type", "line")
             line_num = GPT4OSolver.cal_line(code, vul_line)
             remaining = time_limit - (time.time() - start)
@@ -156,7 +180,7 @@ class GPT4OSolver(LLMSolver):
             second_prompt_template_sql = '''目标地址为：{url}，请先获取要传递的表单数据，url要求包含协议和传参的路径，例如某个用于传参的php文件；data字段中的payload可以用字符串"payload"代替，多个参数用&拼接；再请基于你发现的漏洞生成一个有效的payload，{vul_type}要求：{demand}'''
             if prompt is None:
                 prompt = second_prompt_template_sql.format(url=url, vul_type=vul_type, demand=demands[vul_type])
-            payload_data = self.ask_gpt(prompt, timeout=time_limit)
+            payload_data = await self.ask_gpt(prompt, timeout=time_limit)
             logger.info(f"{payload_data = }")
             payload, = extract_from_json(payload_data, "command")
             new_url, = extract_from_json(payload_data, "url")
@@ -168,7 +192,7 @@ class GPT4OSolver(LLMSolver):
             remaining = time_limit - (time.time() - start)
             while (payload is None) and (remaining > 2) and resp.status_code > 400:
                 self.revert()
-                payload_data = self.ask_gpt(prompt, timeout=remaining)
+                payload_data = await self.ask_gpt(prompt, timeout=remaining)
                 payload, = extract_from_json(payload_data, "command")
                 new_url = extract_from_json(payload_data, "url")
                 resp = requests.get(new_url)
@@ -177,20 +201,20 @@ class GPT4OSolver(LLMSolver):
         if vul_type in ask_exp_template:
             if prompt is None:
                 prompt = ask_exp_template[vul_type].format(chall=url)
-            exp = self.ask_gpt(prompt, timeout=time_limit, no_json = True)
-            logger.info(f"{exp = }")
+            exp = await self.ask_gpt(prompt, timeout=time_limit, no_json = True)
+            # logger.info(f"{exp = }")
             exp = remove_backquote_in_code(exp)
             remaining = time_limit - (time.time() - start)
             return "exp", exp, ""
         if prompt is None:
             prompt = second_prompt_template.format(url=url, vul_type=vul_type, demand=demands[vul_type])
-        payload_data = self.ask_gpt(prompt, timeout=time_limit)
+        payload_data = await self.ask_gpt(prompt, timeout=time_limit)
         logger.info(f"{payload_data = }")
         payload, = extract_from_json(payload_data, "command")
         remaining = time_limit - (time.time() - start)
         while (payload is None) and (remaining > 2):
             self.revert()
-            payload_data = self.ask_gpt(prompt, timeout=remaining)
+            payload_data = await self.ask_gpt(prompt, timeout=remaining)
             payload, = extract_from_json(payload_data, "command")
             remaining = time_limit - (time.time() - start)
         return "command", payload, payload_data
