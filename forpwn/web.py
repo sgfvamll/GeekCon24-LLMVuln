@@ -45,6 +45,12 @@ def background_task(start):
         time_limit_for_line_num = limit_for_qn(3)
     attacker.set_line_num_found()
 
+    time_limit_for_payload = limit_for_qn(4)
+    while not attacker.payloads and limit_for_qn(4) > 2.0:
+        attacker.ask_for_payload(time_limit_for_payload)
+        time_limit_for_payload = limit_for_qn(4)
+    attacker.set_payload_found()
+
     # TODO We can do more queries here. 
 
 
@@ -80,11 +86,19 @@ def chat():
         return "No message provided", 400
 
     if "请问上述代码中存在哪种漏洞" in message:
+        start_time = time.time()
         vul_type = attacker.get_vuln_type()
+        remain_time = RESP_TIME_OUT - (time.time() - start)
+        sleep_time = max(0, remain_time)
+        time.sleep(sleep_time - 2.0)
         return vul_type, 200
     
     elif "请问上述漏洞存在于代码的第几行" in message:
+        start_time = time.time()
         line_num = attacker.get_vuln_line()
+        remain_time = RESP_TIME_OUT - (time.time() - start)
+        sleep_time = max(0, remain_time)
+        time.sleep(sleep_time - 2.0)
         return str(line_num), 200
     
     elif "目标地址为" in message and "请尝试进行漏洞利用" in message:
