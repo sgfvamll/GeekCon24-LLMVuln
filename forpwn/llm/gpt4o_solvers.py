@@ -54,7 +54,7 @@ class GPT4OSolver(LLMSolver):
             logger.error(e)
             return None
         
-        self.history.append({"role": "user", "content": reply})
+        self.history.append({"role": "assistant", "content": reply})
         return replyjson
 
     @staticmethod
