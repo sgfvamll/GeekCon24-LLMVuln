@@ -10,6 +10,16 @@ def extract_from_json(data, *keys):
     except Exception as e:
         logger.error(f"Read from json data failed. ")
         return (None for key in keys)
+    
+def remove_backquote_in_code(code):
+    '''
+    Remove backquote in begin and end of code
+    '''
+    code = code.strip()
+    if code.startswith("```") and code.endswith("```"):
+        code = code.split("\n")[1:-1]
+        return "\n".join(code)
+    return code
 
 class LLMSolver:
     def __init__(self, system_prompt):
