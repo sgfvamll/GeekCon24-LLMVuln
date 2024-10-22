@@ -4,6 +4,7 @@ import requests
 from llm.base import *
 import re
 import time
+import threading
 
 from config import *
 from exploitation import Attacker
@@ -23,6 +24,29 @@ def exract_target(m):
         logger.error(f"Failed to extract URL, {m}")
         return None
 
+def background_task(start):
+    global attacker
+    
+    # use startup_cost to approach the RT before the chall server and our server. 
+    startup_cost = time.time() - start
+    limit_for_qn = lambda n: RESP_TIME_OUT * n - (time.time() - start) - startup_cost
+
+    # determine vuln_type and line_num
+    time_limit_for_vuln_type = limit_for_qn(2)
+    logger.info(f"{time_limit_for_vuln_type = }") 
+    while attacker.vuln_type is None and time_limit_for_vuln_type > 2.0:
+        attacker.determine_vuln_type_and_line(time_limit_for_vuln_type)
+        time_limit_for_vuln_type = limit_for_qn(2)
+    attacker.set_vuln_type_found()
+
+    time_limit_for_line_num = limit_for_qn(3)
+    while attacker.line_num is None and time_limit_for_line_num > 2.0:
+        attacker.determine_vuln_type_and_line(time_limit_for_line_num)
+        time_limit_for_line_num = limit_for_qn(3)
+    attacker.set_line_num_found()
+
+    # TODO We can do more queries here. 
+
 
 @app.route('/chall', methods=['GET'])
 def chall():
@@ -41,11 +65,7 @@ def chall():
         return "Cannot crawler file", 400
     logger.info(f"Crawler file successfully. ")
 
-    # 1s for receive / response
-    cost = time.time() - start
-    vul_type, line_num = attacker.determine_vuln_type_and_line(RESP_TIME_OUT - 1.0 - cost)
-    logger.info(f"{vul_type = }, {line_num = }")
-
+    threading.Thread(target=background_task, args=(start, )).start()
     return "ok", 200
 
 
@@ -60,11 +80,11 @@ def chat():
         return "No message provided", 400
 
     if "请问上述代码中存在哪种漏洞" in message:
-        vul_type = attacker.get_vuln_type(8.0)
+        vul_type = attacker.get_vuln_type()
         return vul_type, 200
     
     elif "请问上述漏洞存在于代码的第几行" in message:
-        line_num = attacker.get_vuln_line(8.0)
+        line_num = attacker.get_vuln_line()
         return str(line_num), 200
     
     elif "目标地址为" in message and "请尝试进行漏洞利用" in message:
