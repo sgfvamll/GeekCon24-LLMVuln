@@ -114,7 +114,7 @@ def round(index, url):
 
 def competition(index, url):
     result = 0
-    for i in range(0, 1):
+    for i in range(3, 4):
         result += round(i, url)
         print("team" + str(index) + ":" + str(result))
 

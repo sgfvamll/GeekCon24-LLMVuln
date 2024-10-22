@@ -58,7 +58,9 @@ def chall():
     if file_url is None:
         return "No `file` provided", 400
     
+    logger.info(f"Start to crawler file. ")
     attacker = Attacker(file_url)
+    logger.info(f"Attacker initialized. ")
     succ = attacker.crawler_vul_code()
     if not succ:
         logger.info(f"Fail to crawler file. ")
