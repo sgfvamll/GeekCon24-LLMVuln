@@ -82,20 +82,20 @@ class GPT4OSolver(LLMSolver):
             vul_type, vul_line = extract_from_json(vulnerability, "type", "line")
             line_num = GPT4OSolver.cal_line(code, vul_line)
             remaining = time_limit - (time.time() - start)
-        if vul_type is None:
-            self.revert()
+        self.commit_or_revert(vul_type is not None)
         return vul_type, line_num
 
-    async def ask_for_payload(self, url: str, vul_type: str, time_limit: float) -> tuple[str, str]:
+    async def ask_for_payload(self, url: str, vul_type: str, time_limit: float, prompt=None) -> tuple[str, str]:
         start = time.time()
-        second_prompt = second_prompt_template.format(url=url, vul_type=vul_type, demand=demands[vul_type])
-        payload_data = self.ask_gpt(second_prompt, timeout=time_limit)
+        if prompt is None:
+            prompt = second_prompt_template.format(url=url, vul_type=vul_type, demand=demands[vul_type])
+        payload_data = self.ask_gpt(prompt, timeout=time_limit)
         logger.info(f"{payload_data = }")
         payload, = extract_from_json(payload_data, "command")
         remaining = time_limit - (time.time() - start)
         while (payload is None) and (remaining > 2):
             self.revert()
-            payload_data = self.ask_gpt(second_prompt, timeout=remaining)
+            payload_data = self.ask_gpt(prompt, timeout=remaining)
             payload, = extract_from_json(payload_data, "command")
             remaining = time_limit - (time.time() - start)
         return "command", payload

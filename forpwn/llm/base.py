@@ -35,6 +35,6 @@ class LLMSolver:
     async def ask_for_vuln_type_and_line(self, code: str, time_limit: float) -> tuple[str, str]:
         return None, None
 
-    async def ask_for_payload(self, url: str, vul_type:str, time_limit: float) -> str:
+    async def ask_for_payload(self, url: str, vul_type:str, time_limit: float, prompt=None) -> str:
         return None
 
