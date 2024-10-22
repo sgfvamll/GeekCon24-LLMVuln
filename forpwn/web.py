@@ -12,6 +12,7 @@ from exploitation import Attacker
 app = Flask(__name__)
 
 attacker = None
+BINARY_VULN = ["栈溢出", "格式化字符串"]
 
 def exract_target(m):
     logger.info(f"in function exract_target, {m = }")
@@ -45,6 +46,8 @@ def background_task(start):
         time_limit_for_line_num = limit_for_qn(3)
     attacker.set_line_num_found()
 
+    if attacker.vuln_type not in BINARY_VULN:
+        return 
     time_limit_for_payload = limit_for_qn(4)
     while not attacker.payloads and limit_for_qn(4) > 2.0:
         attacker.ask_for_payload(time_limit_for_payload)

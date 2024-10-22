@@ -1,6 +1,6 @@
 from openai import OpenAI 
 from logger import logger
-
+import requests
 from .base import LLMSolver, extract_from_json, remove_backquote_in_code
 
 import json
@@ -86,7 +86,7 @@ ask_exp_template = {
 }
 
 demands = {
-    "SQL注入": "要求获取 User 表中 user=root 的 password 字段数据, payload无需携带url",
+    "SQL注入": '要求获取 User 表中user=root的password字段数据, payload无需携带url。返回的数据格式要求如下：{"url": "url", "method": "method", "headers": {the headers data}, "data": "parameters", "command": "real payload"}',
     "命令注入": "要求读取/flag 文件。",
     "栈溢出": "覆盖返回地址为backdoor（backdoor 的地址固定为0xdead0000）后， 读取/flag 文件。",
     "文件包含": "读取/flag 文件，payload要求直接贴在url里，可以通过发包直接获取flag。",
@@ -152,7 +152,28 @@ class GPT4OSolver(LLMSolver):
 
     async def ask_for_payload(self, url: str, vul_type: str, time_limit: float, prompt=None) -> tuple[str, str]:
         start = time.time()
-        
+        if vul_type == "SQL注入":
+            second_prompt_template_sql = '''目标地址为：{url}，请先获取要传递的表单数据，url要求包含协议和传参的路径，例如某个用于传参的php文件；data字段中的payload可以用字符串"payload"代替，多个参数用&拼接；再请基于你发现的漏洞生成一个有效的payload，{vul_type}要求：{demand}'''
+            if prompt is None:
+                prompt = second_prompt_template_sql.format(url=url, vul_type=vul_type, demand=demands[vul_type])
+            payload_data = self.ask_gpt(prompt, timeout=time_limit)
+            logger.info(f"{payload_data = }")
+            payload, = extract_from_json(payload_data, "command")
+            new_url, = extract_from_json(payload_data, "url")
+            # 有时候这里
+            logger.info(f"{payload = }")
+            logger.info(f"{new_url = }")
+            resp = requests.get(new_url)
+            logger.info(f"{resp = }")
+            remaining = time_limit - (time.time() - start)
+            while (payload is None) and (remaining > 2) and resp.status_code > 400:
+                self.revert()
+                payload_data = self.ask_gpt(prompt, timeout=remaining)
+                payload, = extract_from_json(payload_data, "command")
+                new_url = extract_from_json(payload_data, "url")
+                resp = requests.get(new_url)
+                remaining = time_limit - (time.time() - start)
+            return "command", payload, payload_data
         if vul_type in ask_exp_template:
             if prompt is None:
                 prompt = ask_exp_template[vul_type].format(chall=url)
@@ -160,7 +181,7 @@ class GPT4OSolver(LLMSolver):
             logger.info(f"{exp = }")
             exp = remove_backquote_in_code(exp)
             remaining = time_limit - (time.time() - start)
-            return "exp", exp
+            return "exp", exp, ""
         if prompt is None:
             prompt = second_prompt_template.format(url=url, vul_type=vul_type, demand=demands[vul_type])
         payload_data = self.ask_gpt(prompt, timeout=time_limit)
@@ -172,5 +193,5 @@ class GPT4OSolver(LLMSolver):
             payload_data = self.ask_gpt(prompt, timeout=remaining)
             payload, = extract_from_json(payload_data, "command")
             remaining = time_limit - (time.time() - start)
-        return "command", payload
+        return "command", payload, payload_data
 
