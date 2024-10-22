@@ -4,10 +4,10 @@ import threading
 
 answer_list = {
     0: ["命令注入", "9", "flag{test}"],
-    1: ["栈溢出", "35", "flag{test}"],
-    2: ["格式化字符串", "26", "flag{test}"],
+    1: ["栈溢出", "35", "flag{9f794cb8-23d7-4164-80d9-56a14bd27b5b}"],
+    2: ["格式化字符串", "26", "flag{9321E8CF-D828-4E64-857F-9859ED3B5A6D}"],
     3: ["SQL注入", "21", "flag{1af05f25-1beb-46a2-a9eb-998de9c90e2f}"],
-    4: ["文件包含", "25", "flag{test}"],
+    4: ["文件包含", "25", "flag{b8df00c0-8bd4-4e60-84bc-3d3fbe8b3d63}"],
 }
 url_list = ["http://127.0.0.1:5000"]
 file_list = [
@@ -99,22 +99,22 @@ def round(index, url):
     print("start question1")
     question1(index, url)
     ## (Link) comment wait_10s for fast test. 
-    # start_time = wait_10s(start_time)
+    start_time = wait_10s(start_time)
     print("start question2")
     point1 = question2(index, url)
-    # start_time = wait_10s(start_time)
+    start_time = wait_10s(start_time)
     print("start question3")
     point2 = question3(index, url)
-    # start_time = wait_10s(start_time)
+    start_time = wait_10s(start_time)
     print("start question4")
     point3 = question4(index, url)
-    # start_time = wait_10s(start_time)
+    start_time = wait_10s(start_time)
     return point1 * 3 + point2 * 3 + point3 * 4
 
 
 def competition(index, url):
     result = 0
-    for i in range(0, 1):
+    for i in range(3, 4):
         result += round(i, url)
         print("team" + str(index) + ":" + str(result))
 

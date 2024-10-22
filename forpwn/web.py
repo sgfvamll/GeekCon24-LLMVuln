@@ -12,6 +12,7 @@ from exploitation import Attacker
 app = Flask(__name__)
 
 attacker = None
+BINARY_VULN = ["栈溢出", "格式化字符串"]
 
 def exract_target(m):
     logger.info(f"in function exract_target, {m = }")
@@ -45,6 +46,14 @@ def background_task(start):
         time_limit_for_line_num = limit_for_qn(3)
     attacker.set_line_num_found()
 
+    if attacker.vuln_type not in BINARY_VULN:
+        return 
+    time_limit_for_payload = limit_for_qn(4)
+    while not attacker.payloads and limit_for_qn(4) > 2.0:
+        attacker.ask_for_payload(time_limit_for_payload)
+        time_limit_for_payload = limit_for_qn(4)
+    attacker.set_payload_found()
+
     # TODO We can do more queries here. 
 
 
@@ -58,7 +67,9 @@ def chall():
     if file_url is None:
         return "No `file` provided", 400
     
+    logger.info(f"Start to crawler file. ")
     attacker = Attacker(file_url)
+    logger.info(f"Attacker initialized. ")
     succ = attacker.crawler_vul_code()
     if not succ:
         logger.info(f"Fail to crawler file. ")
@@ -80,11 +91,19 @@ def chat():
         return "No message provided", 400
 
     if "请问上述代码中存在哪种漏洞" in message:
+        start_time = time.time()
         vul_type = attacker.get_vuln_type()
+        remain_time = RESP_TIME_OUT - (time.time() - start)
+        sleep_time = max(0, remain_time)
+        time.sleep(sleep_time - 2.0)
         return vul_type, 200
     
     elif "请问上述漏洞存在于代码的第几行" in message:
+        start_time = time.time()
         line_num = attacker.get_vuln_line()
+        remain_time = RESP_TIME_OUT - (time.time() - start)
+        sleep_time = max(0, remain_time)
+        time.sleep(sleep_time - 2.0)
         return str(line_num), 200
     
     elif "目标地址为" in message and "请尝试进行漏洞利用" in message:
