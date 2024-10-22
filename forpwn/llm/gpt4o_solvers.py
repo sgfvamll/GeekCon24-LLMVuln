@@ -86,7 +86,7 @@ class GPT4OSolver(LLMSolver):
             self.revert()
         return vul_type, line_num
 
-    async def ask_for_payload(self, url: str, vul_type: str, time_limit: float) -> str:
+    async def ask_for_payload(self, url: str, vul_type: str, time_limit: float) -> tuple[str, str]:
         start = time.time()
         second_prompt = second_prompt_template.format(url=url, vul_type=vul_type, demand=demands[vul_type])
         payload_data = self.ask_gpt(second_prompt, timeout=time_limit)
@@ -98,5 +98,5 @@ class GPT4OSolver(LLMSolver):
             payload_data = self.ask_gpt(second_prompt, timeout=remaining)
             payload, = extract_from_json(payload_data, "command")
             remaining = time_limit - (time.time() - start)
-        return payload
+        return "command", payload
 
