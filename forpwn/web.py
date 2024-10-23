@@ -54,7 +54,7 @@ def background_task(start):
         time_limit_for_payload = limit_for_qn(4)
     attacker.set_payload_found()
 
-    # TODO We can do more queries here. 
+    # We can do more queries here. 
 
 
 @app.route('/chall', methods=['GET'])

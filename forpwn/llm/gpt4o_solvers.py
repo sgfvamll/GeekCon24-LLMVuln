@@ -97,7 +97,7 @@ demands = {
 class GPT4OSolver(LLMSolver):
     def __init__(self):
         super().__init__(system_prompt)
-        self.client = OpenAI(api_key=api_key, base_url=base_url)
+        # self.client = OpenAI(api_key=api_key, base_url=base_url)
 
     @staticmethod
     async def _ask_gpt(history, timeout):
