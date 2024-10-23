@@ -1,6 +1,7 @@
 services:
   app:
-    build: .
+    # build: .
+    image: repo-app
     ports:
       - "0.0.0.0:5000:5000"
       - "0.0.0.0:7000:7000"
